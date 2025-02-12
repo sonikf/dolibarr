@@ -121,7 +121,7 @@ class Commande extends CommonOrder
 	 * Status of the order
 	 * @var int
 	 */
-	public $status;
+	public $status = 0;
 
 	/**
 	 * @var int Status Billed or not
