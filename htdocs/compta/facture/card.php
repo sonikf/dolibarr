@@ -493,6 +493,16 @@ if (empty($reshook)) {
 		if ($result < 0) {
 			setEventMessages($object->error, $object->errors, 'errors');
 		}
+	} elseif ($action == 'regeneratepaymentref' && $usercancreate) {
+		// Build the structured payment reference of an invoice that was validated
+		// before the feature was set up. See core/lib/paymentref.lib.php.
+		if ($object->status == Facture::STATUS_VALIDATED && getDolGlobalString('INVOICE_PAYMENT_REF_MODE')) {
+			include_once DOL_DOCUMENT_ROOT.'/core/lib/paymentref.lib.php';
+			$newpaymentref = dolPayRefGenerateForInvoice($object, $user, 1);
+			if ($newpaymentref == '') {
+				setEventMessages($langs->trans("WarningPaymentRefNotGenerated"), null, 'warnings');
+			}
+		}
 	} elseif ($action == 'setmode' && $usercancreate) {
 		$object->fetch($id);
 		$result = $object->setPaymentMethods(GETPOSTINT('mode_reglement_id'));
@@ -5973,6 +5983,35 @@ if ($action == 'create') {
 			$form->form_modes_reglement($_SERVER['PHP_SELF'].'?facid='.$object->id, (string) $object->mode_reglement_id, 'none', 'CRDT');
 		}
 		print '</td></tr>';
+
+		// Structured payment reference, see core/lib/paymentref.lib.php.
+		// Read only, the value is written when the invoice is validated.
+		if (getDolGlobalString('INVOICE_PAYMENT_REF_MODE')) {
+			print '<tr><td>'.$langs->trans('PaymentReference').'</td><td>';
+			if (!empty($object->payment_reference)) {
+				print '<span class="opacitymedium paddingright">'.dol_escape_htmltag($object->payment_reference).'</span>';
+			} elseif ($object->status == Facture::STATUS_DRAFT) {
+				// Show what validation would produce, without storing anything
+				include_once DOL_DOCUMENT_ROOT.'/core/lib/paymentref.lib.php';
+				$tmpinvoice = clone $object;
+				$tmpinvoice->status = Facture::STATUS_VALIDATED;
+				$previewpayref = dolPayRefGenerateForInvoice($tmpinvoice, $user, 0);
+				if ($previewpayref != '') {
+					print '<span class="opacitymedium">'.dol_escape_htmltag($previewpayref).' ('.$langs->trans("Preview").')</span>';
+				} else {
+					print '<span class="opacitymedium">'.$langs->trans("PaymentRefGeneratedOnValidation").'</span>';
+				}
+			} else {
+				print '<span class="opacitymedium">'.$langs->trans("None").'</span>';
+				// The invoice was validated before the reference was set up
+				if ($usercancreate && $object->status == Facture::STATUS_VALIDATED) {
+					print ' <a class="paddingleft" href="'.$_SERVER["PHP_SELF"].'?facid='.$object->id.'&action=regeneratepaymentref&token='.newToken().'">';
+					print $langs->trans("GeneratePaymentReference");
+					print '</a>';
+				}
+			}
+			print '</td></tr>';
+		}
 
 		// Bank Account
 		if (isModEnabled("bank")) {
