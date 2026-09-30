@@ -60,7 +60,10 @@ function dolFICalculatePaymentReference($invoice_number, $statut, $use_rf)
 		$bank_reference_fi = $invoice_number . $check_digit; // Concatenate the reference number and the check digit
 		if ($use_rf) { // SEPA RF creditor reference
 			$reference_with_suffix = $bank_reference_fi . "271500"; // Append "271500" to the end of the payment reference number
-			$remainder = (int) bcmod($reference_with_suffix, '97'); // Calculate the remainder when dividing by 97
+			// bcmath is not a Dolibarr requirement, so the remainder is computed
+			// without it. See dolCreditorRefMod97().
+			include_once DOL_DOCUMENT_ROOT.'/core/lib/functions_creditorref.lib.php';
+			$remainder = dolCreditorRefMod97($reference_with_suffix); // Calculate the remainder when dividing by 97
 			$check_digit = 98 - $remainder; // Subtract the remainder from 98
 			if ($check_digit < 10) { // If below 10 -> add leading zero
 				$check_digit = '0' . $check_digit;
