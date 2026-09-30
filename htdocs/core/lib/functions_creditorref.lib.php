@@ -30,7 +30,7 @@
  * Letters A-Z map to 10-35. Digits are kept. Anything else is dropped.
  *
  * @param	string	$str	Input string
- * @return	string			All-digit string suitable for bcmod()
+ * @return	string			All-digit string suitable for dolCreditorRefMod97()
  */
 function dolCreditorRefAlphaToDigits($str)
 {
@@ -61,9 +61,29 @@ function dolCreditorRefAlphaToDigits($str)
  */
 function dolCreditorRefCheckDigits($raw)
 {
-	$tocheck = dolCreditorRefAlphaToDigits($raw.'RF00');
-	$check = 98 - ((int) bcmod($tocheck, '97'));
+	$check = 98 - dolCreditorRefMod97(dolCreditorRefAlphaToDigits($raw.'RF00'));
 	return ($check < 10) ? '0'.$check : (string) $check;
+}
+
+/**
+ * Remainder of a long decimal string divided by 97.
+ *
+ * The numbers used by ISO 7064 are far larger than an integer can hold, so the
+ * string is consumed in small pieces and only the remainder is carried over.
+ * Pieces of 7 digits keep every intermediate value below 2^31, so this works on
+ * a 32 bit build and needs no extension.
+ *
+ * @param	string	$digits		Decimal string, digits only
+ * @return	int<0,96>			Remainder
+ */
+function dolCreditorRefMod97($digits)
+{
+	$rest = 0;
+	$len = strlen($digits);
+	for ($i = 0; $i < $len; $i += 7) {
+		$rest = (int) ($rest.substr($digits, $i, 7)) % 97;
+	}
+	return $rest;
 }
 
 /**
