@@ -1697,13 +1697,16 @@ class pdf_sponge extends ModelePDFFactures
 				}
 			}
 
-			// A structured payment reference is a payment instrument of its own. In
-			// several countries the debtor pays with it alone, so it is shown even
-			// when no bank account is set on the invoice.
-			if (!empty($object->payment_reference)) {
+			// A structured payment reference can be paid with on its own, so when no
+			// bank account is shown on the invoice it is printed by itself.
+			$showbankblock = ((empty($object->mode_reglement_code) || $object->mode_reglement_code == 'VIR')
+				&& ($object->fk_account > 0 || $object->fk_bank > 0 || getDolGlobalInt('FACTURE_RIB_NUMBER')));
+			if (!empty($object->payment_reference) && !$showbankblock) {
+				include_once DOL_DOCUMENT_ROOT.'/core/lib/paymentref.lib.php';
 				$pdf->SetXY($this->marge_gauche, $posy);
-				$pdf->SetFont('', '', $default_font_size - 1);
-				$pdf->MultiCell(100, 3, $outputlangs->transnoentities('PaymentReference').": " . $outputlangs->convToOutputCharset($object->payment_reference), 0, 'L', false);
+				// Same weight and size as the IBAN and BIC lines drawn by pdf_bank()
+				$pdf->SetFont('', 'B', $default_font_size - 3);
+				$pdf->MultiCell(100, 3, $outputlangs->transnoentities('PaymentReference').": " . $outputlangs->convToOutputCharset(dolPayRefFormatForDisplay($object->payment_reference, $mysoc->country_code)), 0, 'L', false);
 				$posy = $pdf->GetY() + 1;
 			}
 
@@ -1745,6 +1748,17 @@ class pdf_sponge extends ModelePDFFactures
 						$pdf->SetFont('', '', $default_font_size - 5);
 						$pdf->MultiCell(30, 3, $outputlangs->transnoentitiesnoconv("INVOICE_ADD_EPC_QR_CODEPay"), 0, 'L', false);
 						$posy = $pdf->GetY() + 2;
+					}
+
+					// The payment reference belongs with the account it is paid to, so it
+					// is shown right after the IBAN and the BIC. Grouped for reading, the
+					// stored value stays compact for the QR code and the SEPA file.
+					if (!empty($object->payment_reference)) {
+						include_once DOL_DOCUMENT_ROOT.'/core/lib/paymentref.lib.php';
+						// Same weight and size as the IBAN and BIC lines above
+						$pdf->SetFont('', 'B', $default_font_size - 3);
+						$pdf->MultiCell(100, 3, $outputlangs->transnoentities('PaymentReference').": " . $outputlangs->convToOutputCharset(dolPayRefFormatForDisplay($object->payment_reference, $mysoc->country_code)), 0, 'L', false);
+						$posy = $pdf->GetY();
 					}
 
 					// Show structured communication of invoices validated before the
