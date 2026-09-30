@@ -56,6 +56,39 @@ function dolPayRefGetSchemeForCountry($country_code)
 }
 
 /**
+ * Format a payment reference the way its country prints it.
+ *
+ * Presentation only. The stored value stays compact, because the QR code, the
+ * barcode and the SEPA file all need it unspaced.
+ *
+ *  - greek references are printed unbroken, all 25 characters
+ *  - a belgian structured communication already carries its own separators
+ *  - everything else is grouped in fours, the ISO 11649 convention
+ *
+ * @param	string	$ref			Stored payment reference
+ * @param	string	$country_code	Creditor country code
+ * @return	string					Reference as it should appear on a document
+ */
+function dolPayRefFormatForDisplay($ref, $country_code = '')
+{
+	$ref = (string) $ref;
+	if ($ref === '') {
+		return '';
+	}
+
+	include_once DOL_DOCUMENT_ROOT.'/core/lib/functions_creditorref.lib.php';
+
+	if (dolPayRefDetectScheme($ref) == 'BBA') {
+		return $ref;
+	}
+	if (dolPayRefGetSchemeForCountry($country_code) == 'GR') {
+		return dolPayRefStrip($ref);
+	}
+
+	return dolPayRefFormat(dolPayRefStrip($ref));
+}
+
+/**
  * Return the setup that is still missing before references can be generated.
  *
  * Some schemes need a value that cannot be chosen freely. The greek DIAS code is
