@@ -88,6 +88,16 @@ class Loan extends CommonObject
 	public $rate;
 
 	/**
+	 * @var int Number of payments per year: 52 (weekly), 26 (fortnightly), 12 (monthly), 4 (quarterly), 2 (half-yearly) or 1 (yearly)
+	 */
+	public $frequency = 12;
+
+	/**
+	 * @var int<0,1> How interest is worked out: 0 = annual rate / number of payments per year, 1 = daily (annual rate x days in the period / 365)
+	 */
+	public $interest_basis = 0;
+
+	/**
 	 * @var int<0,1> paid
 	 */
 	public $paid;
@@ -126,6 +136,11 @@ class Loan extends CommonObject
 	 * @var float insurance amount
 	 */
 	public $insurance_amount;
+
+	/**
+	 * @var float Balloon / residual: lump sum paid with the last payment (0 = none)
+	 */
+	public $balloon_amount = 0;
 
 	/**
 	 * @var int Bank ID
@@ -181,7 +196,7 @@ class Loan extends CommonObject
 	 */
 	public function fetch($id)
 	{
-		$sql = "SELECT l.rowid, l.entity, l.label, l.capital, l.datestart, l.dateend, l.nbterm, l.rate, l.note_private, l.note_public, l.insurance_amount,";
+		$sql = "SELECT l.rowid, l.entity, l.label, l.capital, l.datestart, l.dateend, l.nbterm, l.rate, l.frequency, l.interest_basis, l.note_private, l.note_public, l.insurance_amount, l.balloon_amount,";
 		$sql .= " l.paid, l.fk_bank, l.accountancy_account_capital, l.accountancy_account_insurance, l.accountancy_account_interest, l.fk_projet as fk_project";
 		$sql .= " FROM ".MAIN_DB_PREFIX."loan as l";
 		$sql .= " WHERE l.rowid = ".((int) $id);
@@ -201,9 +216,12 @@ class Loan extends CommonObject
 				$this->capital = $obj->capital;
 				$this->nbterm = $obj->nbterm;
 				$this->rate = $obj->rate;
+				$this->frequency = ((int) $obj->frequency > 0 ? (int) $obj->frequency : 12);
+				$this->interest_basis = (int) $obj->interest_basis;
 				$this->note_private = $obj->note_private;
 				$this->note_public = $obj->note_public;
 				$this->insurance_amount = $obj->insurance_amount;
+				$this->balloon_amount = (float) $obj->balloon_amount;
 				$this->paid = $obj->paid;
 				$this->fk_bank = $obj->fk_bank;
 
@@ -294,9 +312,9 @@ class Loan extends CommonObject
 
 		$this->db->begin();
 
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."loan (label, fk_bank, capital, datestart, dateend, nbterm, rate, note_private, note_public,";
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."loan (label, fk_bank, capital, datestart, dateend, nbterm, rate, frequency, interest_basis, note_private, note_public,";
 		$sql .= " accountancy_account_capital, accountancy_account_insurance, accountancy_account_interest, entity,";
-		$sql .= " datec, fk_projet, fk_user_author, insurance_amount)";
+		$sql .= " datec, fk_projet, fk_user_author, insurance_amount, balloon_amount)";
 		$sql .= " VALUES ('".$this->db->escape($this->label)."',";
 		$sql .= " '".$this->db->escape((string) $this->fk_bank)."',";
 		$sql .= " '".price2num($newcapital)."',";
@@ -304,6 +322,8 @@ class Loan extends CommonObject
 		$sql .= " '".$this->db->idate($this->dateend)."',";
 		$sql .= " '".$this->db->escape((string) $this->nbterm)."',";
 		$sql .= " '".$this->db->escape((string) $this->rate)."',";
+		$sql .= " ".((int) $this->frequency > 0 ? (int) $this->frequency : 12).",";
+		$sql .= " ".((int) $this->interest_basis ? 1 : 0).",";
 		$sql .= " '".$this->db->escape($this->note_private)."',";
 		$sql .= " '".$this->db->escape($this->note_public)."',";
 		$sql .= " '".$this->db->escape($this->account_capital)."',";
@@ -313,7 +333,8 @@ class Loan extends CommonObject
 		$sql .= " '".$this->db->idate($now)."',";
 		$sql .= " ".(empty($this->fk_project) ? 'NULL' : ((int) $this->fk_project)).",";
 		$sql .= " ".((int) $user->id).",";
-		$sql .= " '".price2num($newinsuranceamount)."'";
+		$sql .= " '".price2num($newinsuranceamount)."',";
+		$sql .= " ".((float) price2num((float) $this->balloon_amount, 'MT'));
 		$sql .= ")";
 
 		dol_syslog(get_class($this)."::create", LOG_DEBUG);
@@ -440,12 +461,15 @@ class Loan extends CommonObject
 		$sql .= " dateend='".$this->db->idate($this->dateend)."',";
 		$sql .= " nbterm=".((float) $this->nbterm).",";
 		$sql .= " rate=".((float) $this->rate).",";
+		$sql .= " frequency=".((int) $this->frequency > 0 ? (int) $this->frequency : 12).",";
+		$sql .= " interest_basis=".((int) $this->interest_basis ? 1 : 0).",";
 		$sql .= " accountancy_account_capital = '".$this->db->escape($this->account_capital)."',";
 		$sql .= " accountancy_account_insurance = '".$this->db->escape($this->account_insurance)."',";
 		$sql .= " accountancy_account_interest = '".$this->db->escape($this->account_interest)."',";
 		$sql .= " fk_projet=".(empty($this->fk_project) ? 'NULL' : ((int) $this->fk_project)).",";
 		$sql .= " fk_user_modif = ".((int) $user->id).",";
-		$sql .= " insurance_amount = '".price2num($this->db->escape((string) $this->insurance_amount))."'";
+		$sql .= " insurance_amount = '".price2num($this->db->escape((string) $this->insurance_amount))."',";
+		$sql .= " balloon_amount = ".((float) price2num((float) $this->balloon_amount, 'MT'));
 		$sql .= " WHERE rowid=".((int) $this->id);
 
 		dol_syslog(get_class($this)."::update", LOG_DEBUG);
