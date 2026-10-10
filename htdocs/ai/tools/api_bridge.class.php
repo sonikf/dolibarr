@@ -131,6 +131,14 @@ class ToolApiBridge extends McpTool
 	private $endpoints = [];
 
 	/**
+	 * Active units of measure (c_units), rowid => names a user may say, loaded
+	 * on the first unit to resolve.
+	 *
+	 * @var array<int, string[]>|null
+	 */
+	private $unitNames = null;
+
+	/**
 	 * Endpoint map + method whitelist: endpoint key => module condition, api class
 	 * file/class, and the EXPLICIT list of exposed methods with their optional
 	 * hand-written enrichment. A method absent from 'methods' is never exposed.
@@ -157,6 +165,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a third party (customer, prospect or supplier). The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateThirdparty',
+						'required' => ['name'],
 						'object' => 'Societe',
 						'args' => ['name'],
 						'right' => ['societe', 'creer']
@@ -207,6 +216,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a category (tag). The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateCategory',
+						'required' => ['label', 'type'],
 						'args' => ['type', 'label'],
 						'right' => ['categorie', 'creer']
 					],
@@ -252,6 +262,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a DRAFT supplier invoice (vendor bill). Nothing is validated or paid: the draft is created and the user finishes it in Dolibarr. Give socid, or simply the supplier name, plus ref_supplier (the vendor's own invoice number) and the lines; a line may name its product with product_ref and the catalogue price is used. Do not call a search tool first. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateSupplierInvoice',
+						'required' => ['socid', 'ref_supplier'],
 						'object' => 'FactureFournisseur',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -274,6 +285,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a DRAFT supplier order (purchase order). Nothing is validated or sent: the draft is created and the user finishes it in Dolibarr, or asks for the next step explicitly. Give socid, or simply the third party name, and the lines; a line may name its product with product_ref and the catalogue price is used. Do not call a search tool first. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateSupplierOrder',
+						'required' => ['socid'],
 						'object' => 'CommandeFournisseur',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -300,6 +312,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a DRAFT supplier proposal (price request). Nothing is validated or sent: the draft is created and the user finishes it in Dolibarr, or asks for the next step explicitly. Give socid, or simply the third party name, and the lines; a line may name its product with product_ref and the catalogue price is used. Do not call a search tool first. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateSupplierProposal',
+						'required' => ['socid'],
 						'object' => 'SupplierProposal',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -328,6 +341,7 @@ class ToolApiBridge extends McpTool
 						// Hand-written: a preview cannot be derived from a method
 						// signature, and it is the sentence a human approves.
 						'preview' => 'AIPreviewCreateInvoice',
+						'required' => ['socid'],
 						'object' => 'Facture',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -379,6 +393,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a DRAFT commercial proposal (quote). Nothing is validated or sent: the draft is created and the user finishes it in Dolibarr, or asks for the next step explicitly. Give socid, or simply the third party name, and the lines; a line may name its product with product_ref and the catalogue price is used. Do not call a search tool first. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateProposal',
+						'required' => ['socid'],
 						'object' => 'Propal',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -608,6 +623,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a DRAFT customer order. Nothing is validated or sent: the draft is created and the user finishes it in Dolibarr, or asks for the next step explicitly. Give socid, or simply the third party name, and the lines; a line may name its product with product_ref and the catalogue price is used. Do not call a search tool first. The order date defaults to today. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateOrder',
+						'required' => ['socid'],
 						'object' => 'Commande',
 						'thirdparty' => 'socid',
 						'lines' => 'lines',
@@ -707,6 +723,7 @@ class ToolApiBridge extends McpTool
 					'description' => "Create a product or service in the catalog. The user confirms before anything is written.",
 					'write' => [
 						'preview' => 'AIPreviewCreateProduct',
+						'required' => ['ref', 'label'],
 						'object' => 'Product',
 						'args' => ['label'],
 						'right' => ['produit', 'creer']
@@ -795,7 +812,7 @@ class ToolApiBridge extends McpTool
 		'sortorder' => "Sort direction: 'ASC' or 'DESC'.",
 		'limit' => "Maximum number of records to return.",
 		'page' => "Zero-based page index for pagination.",
-		'sqlfilters' => "Universal search filter. Syntax: (t.field:operator:'value'); operators: =, !=, <, <=, >, >=, like, is; combine clauses with 'and'/'or' and parentheses. Example: \"(t.ref:like:'PR%') and (t.datec:>=:'2026-01-01')\". 'like' is case-insensitive; the IN operator is NOT supported (use 'or'); dates as 'YYYY-MM-DD'.",
+		'sqlfilters' => "Universal search filter. Syntax: (t.field:operator:'value'); operators: =, !=, <, <=, >, >=, like, is; combine clauses with 'and'/'or' and parentheses. Example: \"(t.ref:like:'PR%') and (t.datec:>=:'2026-01-01')\". 'like' is case-insensitive; the IN operator is NOT supported (use 'or'); dates as 'YYYY-MM-DD'. Sub-queries (SELECT ...) are refused: to filter on a third party use thirdparty_ids, or (t.fk_soc:=:id), with its id.",
 		'properties' => "Comma-separated list of properties to include in the response, to reduce its size (e.g. 'id,ref,label').",
 		'id' => "Rowid (numeric technical id) of the record."
 	];
@@ -1240,7 +1257,40 @@ class ToolApiBridge extends McpTool
 			$properties[$pname] = $prop;
 		}
 
-		if ($method === 'index') {
+		// A write receives one request_data body, which tells the model nothing:
+		// show the fields it accepts instead, flat, as the call is made.
+		if (!empty($meta['write']) && !empty($meta['params'])) {
+			$properties = [];
+			$required = [];
+			foreach ($meta['params'] as $pname => $pdesc) {
+				if ($pname === 'lines') {
+					$properties[$pname] = [
+						'type' => 'array',
+						'description' => $pdesc,
+						'items' => [
+							'type' => 'object',
+							'properties' => [
+								'product_ref' => ['type' => 'string', 'description' => 'Ref or label of a catalogue product.'],
+								'desc' => ['type' => 'string', 'description' => 'Free text, for a line with no product.'],
+								'qty' => ['type' => 'number'],
+								'unit' => ['type' => 'string', 'description' => 'Unit as said, e.g. pieces, kg, hour. Omit to use the product unit.'],
+								'subprice' => ['type' => 'number', 'description' => 'Unit price excl. tax. Omit to use the catalogue price.'],
+								'tva_tx' => ['type' => 'number', 'description' => 'VAT rate. Omit to use the default rate.']
+							]
+						]
+					];
+					continue;
+				}
+				$properties[$pname] = ['type' => 'string', 'description' => $pdesc];
+			}
+			foreach ((array) ($meta['write']['required'] ?? array()) as $pname) {
+				$required[] = $pname;
+			}
+		}
+
+		if (!empty($meta['write'])) {
+			$verb = 'Write to';
+		} elseif ($method === 'index') {
 			$verb = 'List / search';
 		} elseif ($method === 'get') {
 			$verb = 'Get one record of';
@@ -1461,6 +1511,49 @@ class ToolApiBridge extends McpTool
 	}
 
 	/**
+	 * Unit id from the word a user used for it: code, short label or label, in the
+	 * user's language, singular or plural ("piece", "pieces", "pcs").
+	 *
+	 * @param	string	$name	Unit as written
+	 * @return	int				Rowid of the unit, 0 when none or several match
+	 */
+	private function unitIdFromName($name)
+	{
+		global $langs;
+
+		$want = dol_strtolower(trim($name));
+		if ($want === '') {
+			return 0;
+		}
+		if (is_numeric($want)) {
+			return (int) $want;
+		}
+		if ($this->unitNames === null) {
+			// Read the dictionary once per request, not once per line.
+			$langs->load('products');
+			$this->unitNames = array();
+			$resql = $this->db->query("SELECT rowid, code, label, short_label FROM ".$this->db->prefix()."c_units WHERE active = 1 LIMIT 500");
+			while ($resql && ($obj = $this->db->fetch_object($resql))) {
+				$names = array(dol_strtolower((string) $obj->code), dol_strtolower((string) $obj->short_label), dol_strtolower((string) $obj->label), dol_strtolower($langs->transnoentitiesnoconv((string) $obj->label)));
+				if ($obj->code === 'P') {
+					$names[] = 'pc';
+					$names[] = 'pcs';
+				}
+				$this->unitNames[(int) $obj->rowid] = $names;
+			}
+		}
+		$forms = array_unique(array($want, (string) preg_replace('/s$/', '', $want), (string) preg_replace('/es$/', '', $want)));
+		$ids = array();
+		foreach ($this->unitNames as $rowid => $names) {
+			if (array_intersect($forms, $names)) {
+				$ids[$rowid] = true;
+			}
+		}
+
+		return count($ids) === 1 ? (int) key($ids) : 0;
+	}
+
+	/**
 	 * Normalise the arguments of a write before they are previewed or executed.
 	 *
 	 * A model may send the record as a request_data body (sometimes a JSON
@@ -1469,9 +1562,10 @@ class ToolApiBridge extends McpTool
 	 * API will actually write.
 	 *
 	 * @param  array<string,mixed> $args Arguments as received.
+	 * @param  array<string,mixed> $write Write block of the tool (its 'object' tells supplier from customer).
 	 * @return array<string,mixed>       Flat arguments with REST field names.
 	 */
-	private function normaliseWriteArgs(array $args)
+	private function normaliseWriteArgs(array $args, array $write = array())
 	{
 		if (isset($args['request_data'])) {
 			$body = $args['request_data'];
@@ -1526,6 +1620,21 @@ class ToolApiBridge extends McpTool
 					// user meant, and the guess would only surface in the preview.
 					$obj = $this->db->fetch_object($resql);
 					$args['socid'] = (int) $obj->rowid;
+				} else {
+					// The name as people say it: the trade name, or some words of the
+					// legal name in any order ("Anthropic" for "Anthropic Ireland,
+					// Limited"). One match only, and only when the whole name given
+					// is that phrase.
+					global $user;
+					require_once DOL_DOCUMENT_ROOT.'/ai/lib/ai.lib.php';
+					$named = trim($named);
+					// No narrowing to customers or suppliers here: a company the user
+					// may mean is never dropped silently. Several fit -> nothing is
+					// resolved and writeRefusal() lists them for the user.
+					$found = aiFindThirdpartiesInText($this->db, $user, $named);
+					if (count($found) === 1 && $found[0]['start'] === 0 && $found[0]['end'] === strlen($named) && count($found[0]['candidates']) === 1) {
+						$args['socid'] = (int) key($found[0]['candidates']);
+					}
 				}
 			}
 		}
@@ -1566,6 +1675,9 @@ class ToolApiBridge extends McpTool
 					}
 					if ($found) {
 						$line['fk_product'] = $prod->id;
+						if (empty($line['fk_unit']) && !isset($line['unit']) && !empty($prod->fk_unit)) {
+							$line['fk_unit'] = (int) $prod->fk_unit;	// the product is in hand: its unit costs nothing more
+						}
 						if (!isset($line['desc'])) {
 							$line['desc'] = $prod->label;
 						}
@@ -1580,6 +1692,23 @@ class ToolApiBridge extends McpTool
 					}
 					unset($line['product_ref']);
 				}
+				// Unit: the one the user named ("4 pieces"), else the product's own,
+				// as the card would. A name matching no unit, or several, is dropped
+				// rather than guessed.
+				if (isset($line['unit']) || (isset($line['fk_unit']) && !is_numeric($line['fk_unit']))) {
+					$unit = $this->unitIdFromName((string) ($line['unit'] ?? $line['fk_unit']));
+					unset($line['unit'], $line['fk_unit']);
+					if ($unit > 0) {
+						$line['fk_unit'] = $unit;
+					}
+				}
+				if (empty($line['fk_unit']) && !empty($line['fk_product'])) {
+					require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+					$unitprod = new Product($this->db);
+					if ($unitprod->fetch((int) $line['fk_product']) > 0 && !empty($unitprod->fk_unit)) {
+						$line['fk_unit'] = (int) $unitprod->fk_unit;
+					}
+				}
 				// A line with no rate is written at 0 %: ask core for the rate that
 				// applies between the two companies for this product, which is what
 				// the card would have filled in.
@@ -1591,6 +1720,62 @@ class ToolApiBridge extends McpTool
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Why a write cannot be prepared, said before the user is asked to confirm
+	 * it: a document for a third party that is missing, unknown, or that several
+	 * third parties fit. Without this the user would approve a write that the
+	 * API then rejects ("Thirdparty with id=0 not found").
+	 *
+	 * @param  string              $toolName Tool being called.
+	 * @param  array<string,mixed> $args     Arguments as received.
+	 * @return string                        Reason, or '' when the write can be confirmed.
+	 */
+	public function writeRefusal(string $toolName, array $args)
+	{
+		global $langs, $user;
+
+		$write = $this->writeMetaFor($toolName);
+		if (empty($write) || empty($write['thirdparty'])) {
+			return '';
+		}
+		$field = (string) $write['thirdparty'];
+		$args = $this->normaliseWriteArgs($args, $write);
+		if (!empty($args[$field]) && is_numeric($args[$field]) && (int) $args[$field] > 0) {
+			return '';
+		}
+
+		$langs->load('other');
+		$named = '';
+		foreach (array($field, 'thirdparty', 'company', 'customer', 'supplier') as $key) {
+			if (!empty($args[$key]) && is_string($args[$key]) && !is_numeric($args[$key])) {
+				$named = trim($args[$key]);
+				break;
+			}
+		}
+		if ($named === '') {
+			return $langs->transnoentitiesnoconv('AIWriteNoThirdparty');
+		}
+
+		require_once DOL_DOCUMENT_ROOT.'/ai/lib/ai.lib.php';
+		$names = array();
+		foreach (aiFindThirdpartiesInText($this->db, $user, $named) as $mt) {
+			foreach ($mt['candidates'] as $c) {
+				if ($c['visible']) {
+					$names[] = $c['name'].' (id '.$c['id'].')';
+				}
+			}
+		}
+		if (count($names) > 1) {
+			return $langs->transnoentitiesnoconv('AIWriteSeveralThirdparties', $named, implode(', ', $names));
+		}
+		if (count($names) === 1) {
+			// Part of the name fits one company, the rest does not: ask, never assume.
+			return $langs->transnoentitiesnoconv('AIWriteThirdpartyDidYouMean', $named, $names[0]);
+		}
+
+		return $langs->transnoentitiesnoconv('AIWriteThirdpartyNotFound', $named);
 	}
 
 	/**
@@ -1616,7 +1801,7 @@ class ToolApiBridge extends McpTool
 			return McpTool::NO_WRITE;
 		}
 
-		$args = $this->normaliseWriteArgs($args);
+		$args = $this->normaliseWriteArgs($args, $write);
 
 		// A single record (third party, product, category) has no lines: it
 		// names the arguments that make up its sentence instead.
@@ -1793,8 +1978,9 @@ class ToolApiBridge extends McpTool
 		// A model may send the record as a request_data body, or name line fields
 		// the way the custom tools do: accept both, so the write receives what the
 		// preview described.
-		if ($this->writeMetaFor($name)) {
-			$args = $this->normaliseWriteArgs($args);
+		$writeMeta = $this->writeMetaFor($name);
+		if ($writeMeta) {
+			$args = $this->normaliseWriteArgs($args, $writeMeta);
 		}
 
 		$this->getDefinitions();	// ensure routes are built
@@ -1901,6 +2087,15 @@ class ToolApiBridge extends McpTool
 					// Core throws bare RestException(403) in places: give the model
 					// something to reason on instead of an empty string.
 					$message = 'Access denied or resource error (HTTP '.($code > 0 ? $code : 500).').';
+				}
+				if (strpos($message, 'Error when validating parameter sqlfilters') === 0) {
+					// The API's own wording ("Bad syntax of the search string: ...")
+					// shows the user a query they never wrote: say what went wrong
+					// and what to do instead.
+					global $langs;
+					dol_syslog(get_class($this).'::execute '.$name.' '.$message, LOG_WARNING);
+					$langs->load('other');
+					$message = $langs->transnoentitiesnoconv('AIBadSearchFilter');
 				}
 				$output = [
 					"error" => $message,
