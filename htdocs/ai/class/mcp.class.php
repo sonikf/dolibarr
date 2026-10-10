@@ -535,6 +535,13 @@ class McpHandler
 			return null;	// read tool
 		}
 
+		// A write the tool already knows it cannot do (its third party missing,
+		// unknown, or ambiguous) is refused now, not after the user approved it.
+		$refusal = method_exists($tool, 'writeRefusal') ? (string) $tool->writeRefusal($toolName, $args) : '';
+		if ($refusal !== '') {
+			return array('error' => $refusal);
+		}
+
 		require_once DOL_DOCUMENT_ROOT.'/ai/class/writeconfirmation.class.php';
 		$gate = new AiWriteConfirmation($this->db);
 
