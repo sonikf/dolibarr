@@ -154,4 +154,17 @@ abstract class McpTool
 	{
 		return self::NO_WRITE;
 	}
+
+	/**
+	 * Why a write cannot be done with these arguments, said before the user is
+	 * asked to confirm it (a record it needs is missing, unknown or ambiguous).
+	 *
+	 * @param string $toolName Tool that would run.
+	 * @param array<string,mixed> $args Arguments it would run with.
+	 * @return string Reason shown instead of the confirmation, or '' to proceed.
+	 */
+	public function writeRefusal(string $toolName, array $args)
+	{
+		return '';
+	}
 }
